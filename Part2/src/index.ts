@@ -19,7 +19,7 @@ interface Keypair {
 
 interface Ciphertext {
   // The initialisation vector
-  iv: bigint;
+  iv: any;
 
   // The encrypted data
   data: bigint[];
@@ -233,12 +233,28 @@ const genEcdhSharedKey = async ({
  * Encrypts a plaintext using a given key.
  * @return The ciphertext.
  */
+
+// https://github.com/iden3/circomlibjs/blob/main/src/mimc7.js
+// https://github.com/privacy-scaling-explorations/maci/blob/master/crypto/ts/index.ts
 const encrypt = async (
   plaintext: Plaintext,
   sharedKey: EcdhSharedKey,
 ): Promise<Ciphertext> => {
   const mimc7 = await buildMimc7();
   // [assignment] generate the IV, use Mimc7 to hash the shared key with the IV, then encrypt the plain text
+   // Generate the IV
+  const buf0 = mimc7.multiHash(plaintext, BigInt(0))
+  const iv = mimc7.F.toObject(buf0); 
+  const ciphertext: Ciphertext = {
+      iv,
+      data: plaintext.map((e: bigint, i: number): bigint => {
+          const hash =mimc7.F.toObject(
+            mimc7.hash(sharedKey,iv + BigInt(i))
+            )
+          return BigInt(e) + hash
+      }),
+    }
+    return ciphertext
 };
 
 /*
@@ -250,6 +266,16 @@ const decrypt = async (
   sharedKey: EcdhSharedKey,
 ): Promise<Plaintext> => {
   // [assignment] use Mimc7 to hash the shared key with the IV, then descrypt the ciphertext
+  const mimc7 = await buildMimc7();
+  const plaintext: Plaintext = ciphertext.data.map(
+        (e: bigint, i: number): bigint => {
+            const buf0 = mimc7.hash(sharedKey,ciphertext.iv + BigInt(i));
+            const hash = mimc7.F.toObject(buf0);
+            return BigInt(e) - hash
+        }
+    )
+
+    return plaintext
 };
 
 export {
